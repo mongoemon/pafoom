@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pafoom</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="site-header">
+    <a href="settings.html" class="settings-link" aria-label="Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </a>
+    <div class="header-content">
+      <h1 class="site-title">Pafoom</h1>
+      <p class="site-subtitle">My Fragrance Collection</p>
+    </div>
+  </header>
+
+  <main class="main-content">
+
+    <section class="controls" aria-label="Filter controls">
+      <div class="search-bar">
+        <input
+          type="search"
+          id="search"
+          placeholder="Search by name, brand, or notes…"
+          aria-label="Search fragrances"
+          autocomplete="off"
+        >
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="11" cy="11" r="8"/>
+          <path d="m21 21-4.35-4.35"/>
+        </svg>
+      </div>
+
+      <div class="filters">
+        <select id="filter-brand" aria-label="Filter by brand">
+          <option value="">All Brands</option>
+        </select>
+        <select id="filter-season" aria-label="Filter by season">
+          <option value="">All Seasons</option>
+          <option value="Spring">Spring</option>
+          <option value="Summer">Summer</option>
+          <option value="Fall">Fall</option>
+          <option value="Winter">Winter</option>
+          <option value="All Season">All Season</option>
+        </select>
+        <select id="filter-status" aria-label="Filter by status">
+          <option value="">All Status</option>
+          <option value="Owned">Owned</option>
+          <option value="Wishlist">Wishlist</option>
+          <option value="Decant">Decant</option>
+          <option value="Gifted">Gifted</option>
+        </select>
+      </div>
+    </section>
+
+    <div class="collection-stats" id="collection-stats" aria-live="polite"></div>
+
+    <section
+      class="perfume-grid"
+      id="perfume-grid"
+      aria-label="Perfume collection"
+      aria-live="polite"
+    >
+      <div class="loading-state" id="loading" aria-hidden="true">
+        <!-- skeleton cards are injected by app.js -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Detail modal -->
+  <div
+    class="modal-overlay"
+    id="modal-overlay"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="modal-title"
+    hidden
+  >
+    <div class="modal">
+      <button class="modal-close" id="modal-close" aria-label="Close detail view">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" aria-hidden="true">
+          <path d="M18 6 6 18M6 6l12 12"/>
+        </svg>
+      </button>
+      <div class="modal-content" id="modal-content"></div>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <p>Data synced from Google Sheets</p>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
