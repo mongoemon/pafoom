@@ -85,8 +85,16 @@
     var langBtn = document.getElementById('lang-toggle');
     if (langBtn) langBtn.textContent = L.langSwitch;
 
+    // Translate view mode button labels
+    document.querySelectorAll('.view-btn span').forEach(function (span) {
+      var btn = span.parentElement;
+      var view = btn.getAttribute('data-view');
+      var labels = { tile: L.viewTile, list: L.viewList, details: L.viewDetails, content: L.viewContent };
+      if (labels[view]) span.textContent = labels[view];
+    });
+
     buildFilterOptions();
-    renderGrid(state.filtered);
+    renderByView(state.filtered);
     renderStats(state.filtered);
   }
 
@@ -106,24 +114,99 @@
   // Expose toggleLanguage so HTML onclick still works
   window.toggleLanguage = toggleLanguage;
 
-  // ── Data fetching (uses shared sheetsFetch) ───────────────
+  // ── View mode ─────────────────────────────────────────────
+  var VIEW_MODES = ['tile', 'list', 'details', 'content'];
+
+  function saveViewMode(mode) {
+    try {
+      var s = JSON.parse(localStorage.getItem('pafoom_config') || '{}');
+      s.viewMode = mode;
+      localStorage.setItem('pafoom_config', JSON.stringify(s));
+    } catch (e) { /* ignore */ }
+  }
+
+  function loadViewMode() {
+    try {
+      var s = JSON.parse(localStorage.getItem('pafoom_config') || '{}');
+      if (s.viewMode && VIEW_MODES.indexOf(s.viewMode) !== -1) return s.viewMode;
+    } catch (e) { /* ignore */ }
+    return 'tile';
+  }
+
+  function switchView(mode) {
+    document.querySelectorAll('.view-btn').forEach(function (btn) {
+      var isActive = btn.getAttribute('data-view') === mode;
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-pressed', String(isActive));
+    });
+    saveViewMode(mode);
+    grid.className = 'perfume-grid perfume-grid--' + mode;
+    // Re-render with current data using the correct view renderer
+    renderByView(state.filtered);
+  }
+
+  function renderByView(perfumes) {
+    var mode = loadViewMode();
+    if (mode === 'list') { renderListView(perfumes); }
+    else if (mode === 'details') { renderDetailsView(perfumes); }
+    else if (mode === 'content') { renderContentView(perfumes); }
+    else { renderGridView(perfumes); }
+  }
+
+  // ── Data fetching (cascading: Google Sheets → local CSV → mock) ──
   function fetchData() {
     showSkeletons();
 
-    sheetsFetch(CONFIG.SHEET_ID, CONFIG.SHEET_NAME, 12000).then(
+    // Step 1: Check if the Sheet ID is valid
+    if (isValidSheetId(CONFIG.SHEET_ID)) {
+      // Try Google Sheets first
+      sheetsFetch(CONFIG.SHEET_ID, CONFIG.SHEET_NAME, 12000).then(
+        function (result) {
+          applySheetData(result);
+        }
+      ).catch(function (err) {
+        console.warn('[Pafoom] Google Sheets fetch failed, trying local CSV files:', err.message);
+        tryLocalCsv();
+      });
+    } else {
+      // Invalid or placeholder Sheet ID — skip straight to local CSV
+      console.log('[Pafoom] Sheet ID is invalid or a placeholder, trying local CSV files.');
+      tryLocalCsv();
+    }
+  }
+
+  function applySheetData(result) {
+    state.all = parseTable(result.table);
+    state.filtered = state.all.slice();
+    populateBrandFilter();
+    renderByView(state.all);
+    renderStats(state.all);
+  }
+
+  // Step 2: Try local CSV files (primary, then alternate)
+  function tryLocalCsv() {
+    var primaryPath = 'sheet/' + CONFIG.SHEET_NAME + '.csv';
+
+    fetchLocalCsv(primaryPath, 10000).then(
       function (result) {
-        state.all = parseTable(result.table);
-        state.filtered = state.all.slice();
-        populateBrandFilter();
-        renderGrid(state.all);
-        renderStats(state.all);
+        applySheetData(result);
       }
-    ).catch(function (err) {
-      var msg;
-      if (err.message === 'Timeout') msg = new Error(L.testTimeout);
-      else if (err.message === 'Network error') msg = new Error(L.testFail);
-      else msg = err;
-      showError(msg);
+    ).catch(function (primaryErr) {
+      console.warn('[Pafoom] Local CSV "' + primaryPath + '" failed:', primaryErr.message);
+
+      // Try the alternate sheet name if it exists
+      var altSheetName = (CONFIG.SHEET_NAME === 'Thai') ? 'Sheet1' : 'Thai';
+      var altPath = 'sheet/' + altSheetName + '.csv';
+
+      fetchLocalCsv(altPath, 10000).then(
+        function (result) {
+          applySheetData(result);
+        }
+      ).catch(function (altErr) {
+        console.warn('[Pafoom] Alternate local CSV "' + altPath + '" also failed:', altErr.message);
+        // Step 3: Fall back to mock data
+        loadMockData();
+      });
     });
   }
 
@@ -234,7 +317,7 @@
       state.filtered.sort(function (a, b) { return a.rating - b.rating; });
     }
 
-    renderGrid(state.filtered);
+    renderByView(state.filtered);
     renderStats(state.filtered, q || brand || season || status);
   }
 
@@ -263,22 +346,163 @@
   }
 
   // ── Rendering ─────────────────────────────────────────────
-  function renderGrid(perfumes) {
+
+  function renderEmptyView() {
+    grid.innerHTML =
+      '<div class="empty-state">' +
+      '  <div class="empty-icon">✦</div>' +
+      '  <p>' + L.noResults + '</p>' +
+      '  <button class="btn-reset" id="btn-reset-filters">' + L.clearFilters + '</button>' +
+      '</div>';
+    document.getElementById('btn-reset-filters').addEventListener('click', resetFilters);
+  }
+
+  // ── Tile view (original card grid) ─────────────────────────
+  function renderGridView(perfumes) {
     grid.innerHTML = '';
 
-    if (!perfumes.length) {
-      grid.innerHTML =
-        '<div class="empty-state">' +
-        '  <div class="empty-icon">✦</div>' +
-        '  <p>' + L.noResults + '</p>' +
-        '  <button class="btn-reset" id="btn-reset-filters">' + L.clearFilters + '</button>' +
-        '</div>';
-      document.getElementById('btn-reset-filters').addEventListener('click', resetFilters);
-      return;
-    }
+    if (!perfumes.length) { renderEmptyView(); return; }
 
     var frag = document.createDocumentFragment();
     perfumes.forEach(function (p) { frag.appendChild(createCard(p)); });
+    grid.appendChild(frag);
+  }
+
+  // ── List view (compact rows) ───────────────────────────────
+  function renderListView(perfumes) {
+    grid.innerHTML = '';
+
+    if (!perfumes.length) { renderEmptyView(); return; }
+
+    var frag = document.createDocumentFragment();
+    perfumes.forEach(function (p) {
+      var row = document.createElement('article');
+      row.className = 'perfume-list-row';
+      row.setAttribute('tabindex', '0');
+      row.setAttribute('role', 'button');
+      row.setAttribute('aria-label', p.name + ' by ' + p.brand);
+
+      var statusClass = p.status ? 'status-' + p.status.toLowerCase().replace(/\s+/g, '-') : '';
+
+      row.innerHTML =
+        '<div class="list-thumb">' +
+        (p.image
+          ? '<img src="' + escapeAttr(p.image) + '" alt="' + escapeAttr(p.name) + '" loading="lazy" onerror="this.parentElement.classList.add(\'img-error\')">'
+          : BOTTLE_PLACEHOLDER_SVG) +
+        '</div>' +
+        '<div class="list-body">' +
+        '  <div class="list-main">' +
+        '    <span class="list-brand">' + escapeHtml(p.brand) + '</span>' +
+        '    <span class="list-sep">·</span>' +
+        '    <span class="list-name">' + escapeHtml(p.name) + '</span>' +
+        '  </div>' +
+        '  <div class="list-meta">' +
+        (p.rating ? '<span class="list-rating" aria-label="' + L.outOf5Stars(p.rating) + '">' + renderStars(p.rating) + ' ' + p.rating.toFixed(1) + '</span>' : '') +
+        (p.concentration ? '<span class="meta-tag">' + escapeHtml(p.concentration) + '</span>' : '') +
+        (p.season ? '<span class="meta-tag">' + escapeHtml(localizeSeason(p.season)) + '</span>' : '') +
+        (p.volume ? '<span class="meta-tag">' + escapeHtml(p.volume) + '</span>' : '') +
+        (p.status ? '<span class="status-badge ' + statusClass + '">' + escapeHtml(localizeStatus(p.status)) + '</span>' : '') +
+        '  </div>' +
+        '</div>';
+
+      row.addEventListener('click', function () { openModal(p); });
+      row.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') openModal(p); });
+      frag.appendChild(row);
+    });
+    grid.appendChild(frag);
+  }
+
+  // ── Details view (expanded cards with description) ─────────
+  function renderDetailsView(perfumes) {
+    grid.innerHTML = '';
+
+    if (!perfumes.length) { renderEmptyView(); return; }
+
+    var frag = document.createDocumentFragment();
+    perfumes.forEach(function (p) {
+      var card = document.createElement('article');
+      card.className = 'perfume-detail-card';
+      card.setAttribute('tabindex', '0');
+      card.setAttribute('role', 'button');
+      card.setAttribute('aria-label', p.name + ' by ' + p.brand);
+
+      var notesHtml = parseNotes(p.notes)
+        .map(function (n) { return '<span class="note-tag">' + n + '</span>'; })
+        .join('');
+      var statusClass = p.status ? 'status-' + p.status.toLowerCase().replace(/\s+/g, '-') : '';
+
+      card.innerHTML =
+        '<div class="detail-image-wrap">' +
+        (p.image
+          ? '<img src="' + escapeAttr(p.image) + '" alt="' + escapeAttr(p.name) + '" loading="lazy" onerror="this.parentElement.classList.add(\'img-error\');this.remove()">'
+          : BOTTLE_PLACEHOLDER_SVG) +
+        (p.status ? '<span class="status-badge ' + statusClass + '">' + escapeHtml(localizeStatus(p.status)) + '</span>' : '') +
+        '</div>' +
+        '<div class="detail-body">' +
+        '  <p class="card-brand">' + escapeHtml(p.brand) + '</p>' +
+        '  <h2 class="detail-name">' + escapeHtml(p.name) + '</h2>' +
+        '  <div class="detail-meta-row">' +
+        (p.rating ? '<div class="card-rating" aria-label="' + L.outOf5Stars(p.rating) + '">' + renderStars(p.rating) + '<span class="rating-num">' + p.rating.toFixed(1) + '</span></div>' : '') +
+        (p.concentration ? '<span class="meta-tag">' + escapeHtml(p.concentration) + '</span>' : '') +
+        (p.season ? '<span class="meta-tag">' + escapeHtml(localizeSeason(p.season)) + '</span>' : '') +
+        (p.volume ? '<span class="meta-tag">' + escapeHtml(p.volume) + '</span>' : '') +
+        '  </div>' +
+        (notesHtml ? '<div class="card-notes">' + notesHtml + '</div>' : '') +
+        (p.description ? '<p class="detail-desc">' + escapeHtml(p.description) + '</p>' : '') +
+        '</div>';
+
+      card.addEventListener('click', function () { openModal(p); });
+      card.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') openModal(p); });
+      frag.appendChild(card);
+    });
+    grid.appendChild(frag);
+  }
+
+  // ── Content view (full-width magazine layout, 1 per row) ───
+  function renderContentView(perfumes) {
+    grid.innerHTML = '';
+
+    if (!perfumes.length) { renderEmptyView(); return; }
+
+    var frag = document.createDocumentFragment();
+
+    perfumes.forEach(function (p) {
+      var hero = document.createElement('article');
+      hero.className = 'perfume-content-hero';
+      hero.setAttribute('tabindex', '0');
+      hero.setAttribute('role', 'button');
+      hero.setAttribute('aria-label', p.name + ' by ' + p.brand);
+
+      var notesHtml = parseNotes(p.notes)
+        .map(function (n) { return '<span class="note-tag">' + n + '</span>'; })
+        .join('');
+      var statusClass = p.status ? 'status-' + p.status.toLowerCase().replace(/\s+/g, '-') : '';
+
+      hero.innerHTML =
+        '<div class="hero-image-wrap">' +
+        (p.image
+          ? '<img src="' + escapeAttr(p.image) + '" alt="' + escapeAttr(p.name) + '" loading="lazy" onerror="this.parentElement.classList.add(\'img-error\');this.remove()">'
+          : BOTTLE_PLACEHOLDER_SVG) +
+        (p.status ? '<span class="status-badge ' + statusClass + '">' + escapeHtml(localizeStatus(p.status)) + '</span>' : '') +
+        '</div>' +
+        '<div class="hero-body">' +
+        '  <p class="card-brand">' + escapeHtml(p.brand) + '</p>' +
+        '  <h2 class="hero-name">' + escapeHtml(p.name) + '</h2>' +
+        (p.rating ? '<div class="card-rating" aria-label="' + L.outOf5Stars(p.rating) + '">' + renderStars(p.rating) + '<span class="rating-num">' + p.rating.toFixed(1) + '</span></div>' : '') +
+        (notesHtml ? '<div class="card-notes">' + notesHtml + '</div>' : '') +
+        '  <div class="card-meta">' +
+        (p.concentration ? '<span class="meta-tag">' + escapeHtml(p.concentration) + '</span>' : '') +
+        (p.season ? '<span class="meta-tag">' + escapeHtml(localizeSeason(p.season)) + '</span>' : '') +
+        (p.volume ? '<span class="meta-tag">' + escapeHtml(p.volume) + '</span>' : '') +
+        '  </div>' +
+        (p.description ? '<p class="hero-desc">' + escapeHtml(p.description) + '</p>' : '') +
+        '</div>';
+
+      hero.addEventListener('click', function () { openModal(p); });
+      hero.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') openModal(p); });
+      frag.appendChild(hero);
+    });
+
     grid.appendChild(frag);
   }
 
@@ -424,7 +648,7 @@
       state.all = MOCK_DATA;
       state.filtered = MOCK_DATA.slice();
       populateBrandFilter();
-      renderGrid(state.all);
+      renderByView(state.all);
       renderStats(state.all);
 
       var banner = document.createElement('div');
@@ -492,14 +716,33 @@
 
   // ── Initialise ────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', function () {
+    // Set initial view mode class
+    var initialView = loadViewMode();
+    grid.className = 'perfume-grid perfume-grid--' + initialView;
+    document.querySelectorAll('.view-btn').forEach(function (btn) {
+      var isActive = btn.getAttribute('data-view') === initialView;
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-pressed', String(isActive));
+    });
+
     translateUI();
 
-    if (CONFIG.USE_MOCK_DATA || CONFIG.SHEET_ID === 'YOUR_GOOGLE_SHEET_ID_HERE') {
+    // View mode button listeners
+    document.querySelectorAll('.view-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        switchView(this.getAttribute('data-view'));
+      });
+    });
+
+    // If user explicitly enabled mock data, use it directly
+    if (CONFIG.USE_MOCK_DATA) {
       loadMockData();
       setupListeners();
       return;
     }
 
+    // Otherwise use cascading fetch:
+    //   Google Sheets → local CSV (Sheet1.csv / Thai.csv) → mock data
     fetchData();
     setupListeners();
   });

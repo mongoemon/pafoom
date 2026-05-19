@@ -67,6 +67,170 @@ function sheetsFetch(sheetId, sheetName, timeoutMs) {
     });
 }
 
+// ── Sheet ID validation ──────────────────────────────────────
+// Returns false for empty, placeholder, or IDs that don't match
+// the typical Google Sheets ID format (20+ alphanumeric/dash/underscore chars).
+function isValidSheetId(sheetId) {
+    if (!sheetId || sheetId === 'YOUR_GOOGLE_SHEET_ID_HERE') return false;
+    return /^[a-zA-Z0-9_-]{20,}$/.test(sheetId);
+}
+
+// ── Local CSV parsing & fetching ─────────────────────────────
+// Parses CSV text (with quoted multi-line fields) into the same
+// { table: { cols, rows }, count } shape that sheetsFetch returns.
+function parseCsvToTable(csvText) {
+    var rows = [];
+    var headers = [];
+
+    var i = 0;
+    var len = csvText.length;
+    var currentRow = [];
+    var currentField = '';
+    var inQuotes = false;
+    var afterQuote = false;
+
+    // Strip BOM if present
+    if (csvText.charCodeAt(0) === 0xFEFF) i = 1;
+
+    while (i < len) {
+        var ch = csvText[i];
+
+        if (inQuotes) {
+            if (ch === '"') {
+                // Escaped quote ""
+                if (i + 1 < len && csvText[i + 1] === '"') {
+                    currentField += '"';
+                    i += 2;
+                    continue;
+                }
+                inQuotes = false;
+                afterQuote = true;
+                i++;
+                continue;
+            }
+            currentField += ch;
+            i++;
+            continue;
+        }
+
+        if (afterQuote) {
+            afterQuote = false;
+            if (ch === ',') {
+                currentRow.push(currentField);
+                currentField = '';
+                i++;
+                continue;
+            }
+            if (ch === '\r') { i++; continue; }
+            if (ch === '\n') {
+                currentRow.push(currentField);
+                currentField = '';
+                rows.push(currentRow);
+                currentRow = [];
+                i++;
+                continue;
+            }
+        }
+
+        if (ch === '"') {
+            inQuotes = true;
+            i++;
+            continue;
+        }
+
+        if (ch === ',') {
+            currentRow.push(currentField);
+            currentField = '';
+            i++;
+            continue;
+        }
+
+        if (ch === '\r') { i++; continue; }
+
+        if (ch === '\n') {
+            currentRow.push(currentField);
+            currentField = '';
+            if (currentRow.length > 0 || rows.length > 0) {
+                rows.push(currentRow);
+            }
+            currentRow = [];
+            i++;
+            continue;
+        }
+
+        currentField += ch;
+        i++;
+    }
+
+    // Last field / row
+    if (currentField !== '' || currentRow.length > 0) {
+        currentRow.push(currentField);
+        if (currentRow.some(function (f) { return f !== ''; })) {
+            rows.push(currentRow);
+        }
+    }
+
+    if (rows.length === 0) return { table: { cols: [], rows: [] }, count: 0 };
+
+    headers = rows[0];
+    var dataRows = rows.slice(1);
+
+    var cols = headers.map(function (h) {
+        return { label: h.trim() };
+    });
+
+    var tableRows = dataRows.map(function (row) {
+        // Pad row to match header count (some rows may have fewer fields)
+        while (row.length < cols.length) row.push('');
+        return {
+            c: row.map(function (val) {
+                return { v: val };
+            })
+        };
+    });
+
+    return {
+        table: {
+            cols: cols,
+            rows: tableRows
+        },
+        count: tableRows.length
+    };
+}
+
+// Fetches a local CSV file and returns parsed table data.
+// Resolves with { table, count } or rejects on failure.
+function fetchLocalCsv(filePath, timeoutMs) {
+    return new Promise(function (resolve, reject) {
+        var timer = setTimeout(function () {
+            reject(new Error('Timeout'));
+        }, timeoutMs || 10000);
+
+        fetch(filePath)
+            .then(function (response) {
+                clearTimeout(timer);
+                if (!response.ok) {
+                    reject(new Error('Not found'));
+                    return;
+                }
+                return response.text();
+            })
+            .then(function (text) {
+                if (text === undefined) return;
+                var result = parseCsvToTable(text);
+                if (result.count === 0) {
+                    reject(new Error('Empty CSV'));
+                    return;
+                }
+                resolve(result);
+            })
+            .catch(function (err) {
+                clearTimeout(timer);
+                reject(err);
+            });
+    });
+}
+
 // Debounce utility
 function debounce(fn, delay) {
     var timer;

@@ -111,6 +111,12 @@ const LOCALES = {
       STATUS: { label: 'Status', hint: 'Use English values: Owned, Wishlist, Decant, or Gifted. Shows a colour badge.' },
       VOLUME: { label: 'Volume', hint: 'Bottle size (e.g. 100ml, 50ml). Shown as a tag on the card.' },
     },
+
+    // ── View mode labels ──────────────────────────────────
+    viewTile: 'Tile',
+    viewList: 'List',
+    viewDetails: 'Details',
+    viewContent: 'Content',
   },
 
   // ──────────────────────────────────────────────────────────
@@ -211,6 +217,12 @@ const LOCALES = {
       STATUS: { label: 'สถานะ (Status)', hint: 'ใช้ค่าภาษาอังกฤษ: Owned, Wishlist, Decant หรือ Gifted เสมอ แสดงป้ายสี' },
       VOLUME: { label: 'ปริมาณ (Volume)', hint: 'ขนาดขวด เช่น 100ml, 50ml แสดงเป็นแท็กบนการ์ด' },
     },
+
+    // ── View mode labels ──────────────────────────────────
+    viewTile: 'การ์ด',
+    viewList: 'รายการ',
+    viewDetails: 'รายละเอียด',
+    viewContent: 'เนื้อหา',
   },
 
 };
