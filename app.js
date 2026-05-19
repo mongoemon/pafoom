@@ -2,489 +2,506 @@
 //  PAFOOM — Application Logic
 // ============================================================
 
-// Apply any overrides saved from settings.html (localStorage takes priority over config.js)
-;(function () {
+(function () {
+  'use strict';
+
+  // ── Config overrides from localStorage ────────────────────
   try {
-    const s = JSON.parse(localStorage.getItem('pafoom_config') || '{}');
-    if (s.sheetId)                   CONFIG.SHEET_ID      = s.sheetId;
-    if (s.sheetName)                 CONFIG.SHEET_NAME    = s.sheetName;
-    if (s.siteTitle)                 CONFIG.SITE_TITLE    = s.siteTitle;
-    if (s.siteSubtitle)              CONFIG.SITE_SUBTITLE = s.siteSubtitle;
-    if (s.useMockData !== undefined) CONFIG.USE_MOCK_DATA = s.useMockData;
-    if (s.columns)                   Object.assign(COLUMN_NAMES, s.columns);
-    if (s.language)                  CONFIG.LANGUAGE      = s.language;
-  } catch {}
-})();
+    var savedCfg = JSON.parse(localStorage.getItem('pafoom_config') || '{}');
+    if (savedCfg.sheetId) CONFIG.SHEET_ID = savedCfg.sheetId;
+    if (savedCfg.sheetName) CONFIG.SHEET_NAME = savedCfg.sheetName;
+    if (savedCfg.siteTitle) CONFIG.SITE_TITLE = savedCfg.siteTitle;
+    if (savedCfg.siteSubtitle) CONFIG.SITE_SUBTITLE = savedCfg.siteSubtitle;
+    if (savedCfg.useMockData !== undefined) CONFIG.USE_MOCK_DATA = savedCfg.useMockData;
+    if (savedCfg.columns) Object.assign(COLUMN_NAMES, savedCfg.columns);
+    if (savedCfg.language) CONFIG.LANGUAGE = savedCfg.language;
+  } catch (e) { /* ignore */ }
 
-// Resolve 'auto': look up current sheet tab in SHEET_LANGUAGES map
-if (CONFIG.LANGUAGE === 'auto') {
-  CONFIG.LANGUAGE =
-    (typeof SHEET_LANGUAGES !== 'undefined' && SHEET_LANGUAGES[CONFIG.SHEET_NAME]) || 'en';
-}
-
-const L = LOCALES[CONFIG.LANGUAGE] || LOCALES.en;
-
-const state = {
-  all:      [],
-  filtered: [],
-};
-
-// ── DOM references ────────────────────────────────────────
-const grid        = document.getElementById('perfume-grid');
-const loading     = document.getElementById('loading');
-const statsEl     = document.getElementById('collection-stats');
-const searchInput = document.getElementById('search');
-const brandSel    = document.getElementById('filter-brand');
-const seasonSel   = document.getElementById('filter-season');
-const statusSel   = document.getElementById('filter-status');
-const overlay     = document.getElementById('modal-overlay');
-const modalBody   = document.getElementById('modal-content');
-
-// ── Initialise ────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  document.querySelector('.site-title').textContent    = CONFIG.SITE_TITLE;
-  document.querySelector('.site-subtitle').textContent = CONFIG.SITE_SUBTITLE;
-  document.title = CONFIG.SITE_TITLE;
-  document.documentElement.lang = L.lang;
-
-  searchInput.placeholder = L.searchPlaceholder;
-  searchInput.setAttribute('aria-label', L.searchPlaceholder);
-  brandSel.options[0].textContent = L.allBrands;
-  const footerP = document.querySelector('.site-footer p');
-  if (footerP) footerP.textContent = L.footer;
-  const langBtn = document.getElementById('lang-toggle');
-  if (langBtn) langBtn.textContent = L.langSwitch;
-
-  buildFilterOptions();
-
-  if (CONFIG.USE_MOCK_DATA || CONFIG.SHEET_ID === 'YOUR_GOOGLE_SHEET_ID_HERE') {
-    loadMockData();
-    setupListeners();
-    return;
+  // Resolve 'auto' language
+  if (CONFIG.LANGUAGE === 'auto') {
+    CONFIG.LANGUAGE =
+      (typeof SHEET_LANGUAGES !== 'undefined' && SHEET_LANGUAGES[CONFIG.SHEET_NAME]) || 'en';
   }
 
-  fetchData();
-  setupListeners();
-});
+  // ── State ──────────────────────────────────────────────────
+  var L = LOCALES[CONFIG.LANGUAGE] || LOCALES.en;
 
-// ── Language toggle ────────────────────────────────────────
-function toggleLanguage() {
-  const next = CONFIG.LANGUAGE === 'th' ? 'en' : 'th';
-  try {
-    const s = JSON.parse(localStorage.getItem('pafoom_config') || '{}');
-    s.language = next;
-    localStorage.setItem('pafoom_config', JSON.stringify(s));
-  } catch {}
-  location.reload();
-}
-
-// ── Data fetching (JSONP — works from file:// and hosted) ─
-function fetchData() {
-  showSkeletons();
-
-  const cbName = '__pafoom_' + Date.now();
-  const url =
-    `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/gviz/tq` +
-    `?tqx=responseHandler:${cbName}&sheet=${encodeURIComponent(CONFIG.SHEET_NAME)}&headers=1`;
-
-  const script = document.createElement('script');
-
-  const cleanup = () => {
-    delete window[cbName];
-    script.remove();
+  var state = {
+    all: [],
+    filtered: [],
   };
 
-  const timer = setTimeout(() => {
-    cleanup();
-    showError(new Error(L.testTimeout));
-  }, 12000);
+  // ── DOM references ────────────────────────────────────────
+  var grid = document.getElementById('perfume-grid');
+  var loading = document.getElementById('loading');
+  var statsEl = document.getElementById('collection-stats');
+  var searchInput = document.getElementById('search');
+  var brandSel = document.getElementById('filter-brand');
+  var seasonSel = document.getElementById('filter-season');
+  var statusSel = document.getElementById('filter-status');
+  var sortSel = document.getElementById('filter-sort');
+  var overlay = document.getElementById('modal-overlay');
+  var modalBody = document.getElementById('modal-content');
 
-  window[cbName] = (data) => {
-    clearTimeout(timer);
-    cleanup();
+  // ── Locale helpers ────────────────────────────────────────
+  function localizeStatus(status) {
+    var s = status && status.toLowerCase ? status.toLowerCase() : '';
+    var map = {};
+    map.owned = L.statusOwned;
+    map.wishlist = L.statusWishlist;
+    map.decant = L.statusDecant;
+    map.gifted = L.statusGifted;
+    return map[s] || status;
+  }
+
+  function localizeSeason(season) {
+    var s = season && season.toLowerCase ? season.toLowerCase() : '';
+    var map = {};
+    map.spring = L.seasonSpring;
+    map.summer = L.seasonSummer;
+    map.fall = L.seasonFall;
+    map.winter = L.seasonWinter;
+    map['all season'] = L.seasonAll;
+    return map[s] || season;
+  }
+
+  // ── Translation (in-place, no reload) ──────────────────────
+  function translateUI() {
+    document.querySelector('.site-title').textContent = CONFIG.SITE_TITLE;
+    document.querySelector('.site-subtitle').textContent = CONFIG.SITE_SUBTITLE;
+    document.title = CONFIG.SITE_TITLE;
+    document.documentElement.lang = L.lang;
+
+    searchInput.placeholder = L.searchPlaceholder;
+    searchInput.setAttribute('aria-label', L.searchPlaceholder);
+    if (sortSel) sortSel.options[0].textContent = L.sortByRating;
+    brandSel.options[0].textContent = L.allBrands;
+    var footerP = document.querySelector('.site-footer p');
+    if (footerP) footerP.textContent = L.footer;
+    if (sortSel) {
+      sortSel.options[1].textContent = L.sortHighToLow;
+      sortSel.options[2].textContent = L.sortLowToHigh;
+    }
+    var langBtn = document.getElementById('lang-toggle');
+    if (langBtn) langBtn.textContent = L.langSwitch;
+
+    buildFilterOptions();
+    renderGrid(state.filtered);
+    renderStats(state.filtered);
+  }
+
+  // ── Language toggle (in-place) ────────────────────────────
+  function toggleLanguage() {
+    var next = CONFIG.LANGUAGE === 'th' ? 'en' : 'th';
+    CONFIG.LANGUAGE = next;
+    L = LOCALES[next] || LOCALES.en;
     try {
-      if (data.status === 'error') {
-        throw new Error(data.errors?.[0]?.detailed_message || L.testSheetError);
+      var s = JSON.parse(localStorage.getItem('pafoom_config') || '{}');
+      s.language = next;
+      localStorage.setItem('pafoom_config', JSON.stringify(s));
+    } catch (e) { /* ignore */ }
+    translateUI();
+  }
+
+  // Expose toggleLanguage so HTML onclick still works
+  window.toggleLanguage = toggleLanguage;
+
+  // ── Data fetching (uses shared sheetsFetch) ───────────────
+  function fetchData() {
+    showSkeletons();
+
+    sheetsFetch(CONFIG.SHEET_ID, CONFIG.SHEET_NAME, 12000).then(
+      function (result) {
+        state.all = parseTable(result.table);
+        state.filtered = state.all.slice();
+        populateBrandFilter();
+        renderGrid(state.all);
+        renderStats(state.all);
       }
-      state.all      = parseTable(data.table);
-      state.filtered = [...state.all];
+    ).catch(function (err) {
+      var msg;
+      if (err.message === 'Timeout') msg = new Error(L.testTimeout);
+      else if (err.message === 'Network error') msg = new Error(L.testFail);
+      else msg = err;
+      showError(msg);
+    });
+  }
+
+  function parseTable(table) {
+    if (!table || !table.cols || !table.rows) return [];
+
+    // Build header -> column-index map (case-insensitive)
+    var headerMap = {};
+    table.cols.forEach(function (col, i) {
+      headerMap[col.label.trim().toLowerCase()] = i;
+    });
+
+    // Map configured column names to indices
+    var idx = {};
+    Object.keys(COLUMN_NAMES).forEach(function (key) {
+      var label = COLUMN_NAMES[key].trim().toLowerCase();
+      idx[key] = headerMap.hasOwnProperty(label) ? headerMap[label] : -1;
+    });
+
+    function get(row, key) {
+      var i = idx[key];
+      if (i === -1) return '';
+      var cell = row.c[i];
+      if (!cell || cell.v === null || cell.v === undefined) return '';
+      return String(cell.v).trim();
+    }
+
+    return table.rows
+      .map(function (row) {
+        return {
+          name: get(row, 'NAME'),
+          brand: get(row, 'BRAND'),
+          image: toDriveImageUrl(get(row, 'IMAGE')),
+          notes: get(row, 'NOTES'),
+          season: get(row, 'SEASON'),
+          concentration: get(row, 'CONCENTRATION'),
+          rating: parseFloat(get(row, 'RATING')) || 0,
+          description: get(row, 'DESCRIPTION'),
+          status: get(row, 'STATUS'),
+          volume: get(row, 'VOLUME'),
+        };
+      })
+      .filter(function (p) { return p.name; });
+  }
+
+  // ── Filters & search ─────────────────────────────────────
+  function buildFilterOptions() {
+    seasonSel.innerHTML =
+      '<option value="">' + L.allSeasons + '</option>' +
+      SEASONS.map(function (s) {
+        var key = s.toLowerCase();
+        var labels = {
+          spring: L.seasonSpring, summer: L.seasonSummer,
+          fall: L.seasonFall, winter: L.seasonWinter,
+          'all season': L.seasonAll
+        };
+        return '<option value="' + s + '">' + (labels[key] || s) + '</option>';
+      }).join('');
+
+    statusSel.innerHTML =
+      '<option value="">' + L.allStatus + '</option>' +
+      STATUSES.map(function (s) {
+        var key = s.toLowerCase();
+        var labels = {
+          owned: L.statusOwned, wishlist: L.statusWishlist,
+          decant: L.statusDecant, gifted: L.statusGifted
+        };
+        return '<option value="' + s + '">' + (labels[key] || s) + '</option>';
+      }).join('');
+  }
+
+  function setupListeners() {
+    searchInput.addEventListener('input', debounce(applyFilters, 250));
+    brandSel.addEventListener('change', applyFilters);
+    seasonSel.addEventListener('change', applyFilters);
+    statusSel.addEventListener('change', applyFilters);
+    if (sortSel) sortSel.addEventListener('change', applyFilters);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) closeModal(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeModal(); });
+  }
+
+  function applyFilters() {
+    var q = searchInput.value.toLowerCase();
+    var brand = brandSel.value;
+    var season = seasonSel.value;
+    var status = statusSel.value;
+    var sort = sortSel ? sortSel.value : '';
+
+    state.filtered = state.all.filter(function (p) {
+      var matchQ =
+        !q ||
+        p.name.toLowerCase().indexOf(q) !== -1 ||
+        p.brand.toLowerCase().indexOf(q) !== -1 ||
+        p.notes.toLowerCase().indexOf(q) !== -1 ||
+        p.description.toLowerCase().indexOf(q) !== -1;
+
+      var matchBrand = !brand || p.brand === brand;
+      var matchSeason = !season || p.season === season;
+      var matchStatus = !status || p.status === status;
+
+      return matchQ && matchBrand && matchSeason && matchStatus;
+    });
+
+    // Sort by rating
+    if (sort === 'desc') {
+      state.filtered.sort(function (a, b) { return b.rating - a.rating; });
+    } else if (sort === 'asc') {
+      state.filtered.sort(function (a, b) { return a.rating - b.rating; });
+    }
+
+    renderGrid(state.filtered);
+    renderStats(state.filtered, q || brand || season || status);
+  }
+
+  function populateBrandFilter() {
+    var seen = {};
+    var brands = [];
+    state.all.forEach(function (p) {
+      if (p.brand && !seen[p.brand]) {
+        seen[p.brand] = true;
+        brands.push(p.brand);
+      }
+    });
+    brands.sort();
+
+    // Remove previously appended brand options (keep the first "All Brands" option)
+    while (brandSel.options.length > 1) {
+      brandSel.remove(1);
+    }
+
+    brands.forEach(function (b) {
+      var opt = document.createElement('option');
+      opt.value = b;
+      opt.textContent = b;
+      brandSel.appendChild(opt);
+    });
+  }
+
+  // ── Rendering ─────────────────────────────────────────────
+  function renderGrid(perfumes) {
+    grid.innerHTML = '';
+
+    if (!perfumes.length) {
+      grid.innerHTML =
+        '<div class="empty-state">' +
+        '  <div class="empty-icon">✦</div>' +
+        '  <p>' + L.noResults + '</p>' +
+        '  <button class="btn-reset" id="btn-reset-filters">' + L.clearFilters + '</button>' +
+        '</div>';
+      document.getElementById('btn-reset-filters').addEventListener('click', resetFilters);
+      return;
+    }
+
+    var frag = document.createDocumentFragment();
+    perfumes.forEach(function (p) { frag.appendChild(createCard(p)); });
+    grid.appendChild(frag);
+  }
+
+  function createCard(p) {
+    var card = document.createElement('article');
+    card.className = 'perfume-card';
+    card.setAttribute('tabindex', '0');
+    card.setAttribute('role', 'button');
+    card.setAttribute('aria-label', p.name + ' by ' + p.brand);
+
+    var notesHtml = parseNotes(p.notes)
+      .map(function (n) { return '<span class="note-tag">' + n + '</span>'; })
+      .join('');
+
+    var statusClass = p.status ? 'status-' + p.status.toLowerCase().replace(/\s+/g, '-') : '';
+
+    card.innerHTML =
+      '<div class="card-image-wrap">' +
+      (p.image
+        ? '<img src="' + escapeAttr(p.image) + '" alt="' + escapeAttr(p.name) + '" class="card-image" loading="lazy" onerror="this.parentElement.classList.add(\'img-error\');this.remove()">'
+        : '') +
+      BOTTLE_PLACEHOLDER_SVG +
+      (p.status ? '<span class="status-badge ' + statusClass + '">' + escapeHtml(localizeStatus(p.status)) + '</span>' : '') +
+      '</div>' +
+      '<div class="card-body">' +
+      '  <p class="card-brand">' + escapeHtml(p.brand) + '</p>' +
+      '  <h2 class="card-name">' + escapeHtml(p.name) + '</h2>' +
+      (p.rating ? '<div class="card-rating" aria-label="' + L.outOf5Stars(p.rating) + '">' + renderStars(p.rating) + '<span class="rating-num">' + p.rating.toFixed(1) + '</span></div>' : '') +
+      (notesHtml ? '<div class="card-notes">' + notesHtml + '</div>' : '') +
+      '  <div class="card-meta">' +
+      (p.concentration ? '<span class="meta-tag">' + escapeHtml(p.concentration) + '</span>' : '') +
+      (p.season ? '<span class="meta-tag">' + escapeHtml(localizeSeason(p.season)) + '</span>' : '') +
+      (p.volume ? '<span class="meta-tag">' + escapeHtml(p.volume) + '</span>' : '') +
+      '  </div>' +
+      '</div>';
+
+    card.addEventListener('click', function () { openModal(p); });
+    card.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') openModal(p); });
+    return card;
+  }
+
+  function renderStats(perfumes, filtered) {
+    var owned = 0;
+    var wishlist = 0;
+    perfumes.forEach(function (p) {
+      var s = p.status && p.status.toLowerCase ? p.status.toLowerCase() : '';
+      if (s === 'owned') owned++;
+      if (s === 'wishlist') wishlist++;
+    });
+    var total = perfumes.length;
+
+    var prefix = filtered ? L.statsShowing : L.statsCollection;
+    var parts = ['<span>' + total + ' ' + (total === 1 ? L.fragrance : L.fragrances) + '</span>'];
+    if (!filtered && owned) parts.push('<span>' + owned + ' ' + L.statsOwned + '</span>');
+    if (!filtered && wishlist) parts.push('<span>' + wishlist + ' ' + L.statsWishlist + '</span>');
+
+    statsEl.innerHTML = '<p class="stats-text">' + prefix + ' · ' + parts.join(' · ') + '</p>';
+  }
+
+  // ── Modal ─────────────────────────────────────────────────
+  function openModal(p) {
+    var allNotes = parseNotes(p.notes).map(function (n) { return '<span class="note-tag">' + n + '</span>'; }).join('');
+    var statusClass = p.status ? 'status-' + p.status.toLowerCase().replace(/\s+/g, '-') : '';
+
+    // modal placeholder variant
+    var modalPlaceholder = BOTTLE_PLACEHOLDER_SVG.replace('card-image-placeholder', 'card-image-placeholder modal-placeholder');
+
+    modalBody.innerHTML =
+      '<div class="modal-image-wrap">' +
+      (p.image
+        ? '<img src="' + escapeAttr(p.image) + '" alt="' + escapeAttr(p.name) + '" class="modal-image" onerror="this.parentElement.classList.add(\'img-error\');this.remove()">'
+        : '') +
+      modalPlaceholder +
+      '</div>' +
+      '<div class="modal-info">' +
+      '  <p class="modal-brand">' + escapeHtml(p.brand) + '</p>' +
+      '  <h2 class="modal-name" id="modal-title">' + escapeHtml(p.name) + '</h2>' +
+      '  <div class="modal-badges">' +
+      (p.status ? '<span class="status-badge ' + statusClass + '">' + escapeHtml(localizeStatus(p.status)) + '</span>' : '') +
+      (p.concentration ? '<span class="meta-tag">' + escapeHtml(p.concentration) + '</span>' : '') +
+      (p.volume ? '<span class="meta-tag">' + escapeHtml(p.volume) + '</span>' : '') +
+      (p.season ? '<span class="meta-tag">' + escapeHtml(localizeSeason(p.season)) + '</span>' : '') +
+      '  </div>' +
+      (p.rating ? '<div class="modal-rating" aria-label="' + L.outOf5(p.rating) + '">' + renderStars(p.rating) + '<span class="rating-num">' + p.rating.toFixed(1) + '</span></div>' : '') +
+      (allNotes ?
+        '<div class="modal-section">' +
+        '  <p class="modal-label">' + L.fragranceNotes + '</p>' +
+        '  <div class="modal-notes">' + allNotes + '</div>' +
+        '</div>' : '') +
+      (p.description ?
+        '<div class="modal-section">' +
+        '  <p class="modal-label">' + L.myNotes + '</p>' +
+        '  <p class="modal-description">' + escapeHtml(p.description) + '</p>' +
+        '</div>' : '') +
+      '</div>';
+
+    overlay.hidden = false;
+    document.body.classList.add('modal-open');
+  }
+
+  function closeModal() {
+    overlay.hidden = true;
+    document.body.classList.remove('modal-open');
+  }
+
+  // ── Loading / error states ────────────────────────────────
+  function showSkeletons() {
+    var cards = [];
+    for (var i = 0; i < SKELETON_COUNT; i++) {
+      cards.push(
+        '<div class="skeleton-card" aria-hidden="true">' +
+        '  <div class="skeleton skeleton-img"></div>' +
+        '  <div class="skeleton-body">' +
+        '    <div class="skeleton skeleton-line short"></div>' +
+        '    <div class="skeleton skeleton-line"></div>' +
+        '    <div class="skeleton skeleton-line medium"></div>' +
+        '  </div>' +
+        '</div>'
+      );
+    }
+    grid.innerHTML = cards.join('');
+  }
+
+  function showError(err) {
+    grid.innerHTML =
+      '<div class="error-state">' +
+      '  <p class="error-title">' + L.errorTitle + '</p>' +
+      '  <p class="error-detail">' + escapeHtml(err.message) + '</p>' +
+      '  <ul class="error-tips">' +
+      '    <li>' + L.errorTip1 + '</li>' +
+      '    <li>' + L.errorTip2 + '</li>' +
+      '    <li>' + L.errorTip3 + '</li>' +
+      '  </ul>' +
+      '  <button class="btn-reset" id="btn-try-again">' + L.tryAgain + '</button>' +
+      '</div>';
+    document.getElementById('btn-try-again').addEventListener('click', fetchData);
+    console.error('[Pafoom]', err);
+  }
+
+  function loadMockData() {
+    showSkeletons();
+    setTimeout(function () {
+      state.all = MOCK_DATA;
+      state.filtered = MOCK_DATA.slice();
       populateBrandFilter();
       renderGrid(state.all);
       renderStats(state.all);
-    } catch (err) {
-      showError(err);
+
+      var banner = document.createElement('div');
+      banner.className = 'demo-banner';
+      banner.innerHTML = L.demoBanner;
+      document.querySelector('.main-content').prepend(banner);
+    }, 600);
+  }
+
+  function showSetupMessage() {
+    grid.innerHTML =
+      '<div class="setup-state">' +
+      '  <h2 class="setup-title">Welcome to Pafoom ✦</h2>' +
+      '  <p>Open <code>config.js</code> and replace <code>YOUR_GOOGLE_SHEET_ID_HERE</code> with your actual Sheet ID to get started.</p>' +
+      '  <ol class="setup-steps">' +
+      '    <li>Create a Google Sheet with columns: <em>Name, Brand, Image, Notes, Season, Concentration, Rating, Description, Status, Volume</em></li>' +
+      '    <li>Share it → <em>"Anyone with the link — Viewer"</em></li>' +
+      '    <li>Copy the Sheet ID from the URL</li>' +
+      '    <li>Paste it in <code>config.js</code></li>' +
+      '  </ol>' +
+      '</div>';
+    if (loading) loading.remove();
+  }
+
+  // ── Helpers ───────────────────────────────────────────────
+  function resetFilters() {
+    searchInput.value = '';
+    brandSel.value = '';
+    seasonSel.value = '';
+    statusSel.value = '';
+    if (sortSel) sortSel.value = '';
+    applyFilters();
+  }
+
+  // Expose resetFilters for HTML onclick (empty-state button)
+  window.resetFilters = resetFilters;
+
+  function parseNotes(raw) {
+    if (!raw) return [];
+    // Split by newlines first (for Top:/Mid:/Base: format), then by commas
+    return raw.split(/\n/).reduce(function (acc, line) {
+      var parts = line.split(/[,、，]/).map(function (n) { return n.trim(); }).filter(Boolean);
+      if (parts.length) {
+        // Re-join comma-separated items on the same line so each line stays as one tag
+        acc.push(parts.join(', '));
+      }
+      return acc;
+    }, []);
+  }
+
+  function renderStars(rating) {
+    var full = Math.floor(rating);
+    var half = rating % 1 >= 0.5 ? 1 : 0;
+    var empty = 5 - full - half;
+    var star = '★';
+    var emptyStar = '☆';
+    var i;
+    var result = '<span class="stars" aria-hidden="true">';
+    for (i = 0; i < full; i++) result += star;
+    if (half) result += '½';
+    for (i = 0; i < empty; i++) result += emptyStar;
+    result += '</span>';
+    return result;
+  }
+
+  // ── Initialise ────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', function () {
+    translateUI();
+
+    if (CONFIG.USE_MOCK_DATA || CONFIG.SHEET_ID === 'YOUR_GOOGLE_SHEET_ID_HERE') {
+      loadMockData();
+      setupListeners();
+      return;
     }
-  };
 
-  script.onerror = () => {
-    clearTimeout(timer);
-    cleanup();
-    showError(new Error(L.testFail));
-  };
-
-  document.head.appendChild(script);
-  script.src = url;
-}
-
-// Converts any Google Drive share URL to a direct embeddable image URL.
-// Paste either format in your sheet's Image column:
-//   https://drive.google.com/file/d/FILE_ID/view?usp=sharing
-//   https://drive.google.com/open?id=FILE_ID
-// Non-Drive URLs are passed through unchanged.
-function toDriveImageUrl(url) {
-  if (!url || !url.includes('drive.google.com')) return url;
-  const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/) ||
-                url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-  return match ? `https://lh3.googleusercontent.com/d/${match[1]}` : url;
-}
-
-function parseTable(table) {
-  if (!table || !table.cols || !table.rows) return [];
-
-  // Build header → column-index map (case-insensitive)
-  const headerMap = {};
-  table.cols.forEach((col, i) => {
-    headerMap[col.label.trim().toLowerCase()] = i;
+    fetchData();
+    setupListeners();
   });
 
-  // Map configured column names to indices
-  const idx = {};
-  for (const [key, label] of Object.entries(COLUMN_NAMES)) {
-    idx[key] = headerMap[label.trim().toLowerCase()] ?? -1;
-  }
-
-  const get = (row, key) => {
-    const i = idx[key];
-    if (i === -1) return '';
-    const cell = row.c[i];
-    if (!cell || cell.v === null || cell.v === undefined) return '';
-    return String(cell.v).trim();
-  };
-
-  return table.rows
-    .map(row => ({
-      name:          get(row, 'NAME'),
-      brand:         get(row, 'BRAND'),
-      image:         toDriveImageUrl(get(row, 'IMAGE')),
-      notes:         get(row, 'NOTES'),
-      season:        get(row, 'SEASON'),
-      concentration: get(row, 'CONCENTRATION'),
-      rating:        parseFloat(get(row, 'RATING')) || 0,
-      description:   get(row, 'DESCRIPTION'),
-      status:        get(row, 'STATUS'),
-      volume:        get(row, 'VOLUME'),
-    }))
-    .filter(p => p.name);   // skip empty rows
-}
-
-// ── Filters & search ─────────────────────────────────────
-function buildFilterOptions() {
-  seasonSel.innerHTML =
-    `<option value="">${L.allSeasons}</option>` +
-    `<option value="Spring">${L.seasonSpring}</option>` +
-    `<option value="Summer">${L.seasonSummer}</option>` +
-    `<option value="Fall">${L.seasonFall}</option>` +
-    `<option value="Winter">${L.seasonWinter}</option>` +
-    `<option value="All Season">${L.seasonAll}</option>`;
-
-  statusSel.innerHTML =
-    `<option value="">${L.allStatus}</option>` +
-    `<option value="Owned">${L.statusOwned}</option>` +
-    `<option value="Wishlist">${L.statusWishlist}</option>` +
-    `<option value="Decant">${L.statusDecant}</option>` +
-    `<option value="Gifted">${L.statusGifted}</option>`;
-}
-
-function setupListeners() {
-  searchInput.addEventListener('input',  applyFilters);
-  brandSel.addEventListener('change',    applyFilters);
-  seasonSel.addEventListener('change',   applyFilters);
-  statusSel.addEventListener('change',   applyFilters);
-  overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
-  document.addEventListener('keydown',   e => { if (e.key === 'Escape') closeModal(); });
-}
-
-function applyFilters() {
-  const q      = searchInput.value.toLowerCase();
-  const brand  = brandSel.value;
-  const season = seasonSel.value;
-  const status = statusSel.value;
-
-  state.filtered = state.all.filter(p => {
-    const matchQ =
-      !q ||
-      p.name.toLowerCase().includes(q)  ||
-      p.brand.toLowerCase().includes(q) ||
-      p.notes.toLowerCase().includes(q) ||
-      p.description.toLowerCase().includes(q);
-
-    const matchBrand  = !brand  || p.brand  === brand;
-    const matchSeason = !season || p.season === season;
-    const matchStatus = !status || p.status === status;
-
-    return matchQ && matchBrand && matchSeason && matchStatus;
-  });
-
-  renderGrid(state.filtered);
-  renderStats(state.filtered, q || brand || season || status);
-}
-
-function populateBrandFilter() {
-  const brands = [...new Set(state.all.map(p => p.brand).filter(Boolean))].sort();
-  brands.forEach(b => {
-    const opt = document.createElement('option');
-    opt.value = b;
-    opt.textContent = b;
-    brandSel.appendChild(opt);
-  });
-}
-
-// ── Locale helpers ────────────────────────────────────────
-function localizeStatus(status) {
-  const map = {
-    owned:    L.statusOwned,
-    wishlist: L.statusWishlist,
-    decant:   L.statusDecant,
-    gifted:   L.statusGifted,
-  };
-  return map[status?.toLowerCase()] || status;
-}
-
-function localizeSeason(season) {
-  const map = {
-    spring:       L.seasonSpring,
-    summer:       L.seasonSummer,
-    fall:         L.seasonFall,
-    winter:       L.seasonWinter,
-    'all season': L.seasonAll,
-  };
-  return map[season?.toLowerCase()] || season;
-}
-
-// ── Rendering ─────────────────────────────────────────────
-function renderGrid(perfumes) {
-  grid.innerHTML = '';
-
-  if (!perfumes.length) {
-    grid.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon">✦</div>
-        <p>${L.noResults}</p>
-        <button class="btn-reset" onclick="resetFilters()">${L.clearFilters}</button>
-      </div>`;
-    return;
-  }
-
-  const frag = document.createDocumentFragment();
-  perfumes.forEach(p => frag.appendChild(createCard(p)));
-  grid.appendChild(frag);
-}
-
-function createCard(p) {
-  const card = document.createElement('article');
-  card.className = 'perfume-card';
-  card.setAttribute('tabindex', '0');
-  card.setAttribute('role', 'button');
-  card.setAttribute('aria-label', `${p.name} by ${p.brand}`);
-
-  const notesHtml = parseNotes(p.notes)
-    .map(n => `<span class="note-tag">${n}</span>`)
-    .join('');
-
-  const statusClass = p.status ? `status-${p.status.toLowerCase().replace(/\s+/g, '-')}` : '';
-
-  card.innerHTML = `
-    <div class="card-image-wrap">
-      ${p.image
-        ? `<img src="${escapeAttr(p.image)}" alt="${escapeAttr(p.name)}" class="card-image" loading="lazy" onerror="this.parentElement.classList.add('img-error');this.remove()">`
-        : ''}
-      <div class="card-image-placeholder" aria-hidden="true">
-        <svg viewBox="0 0 80 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="28" y="2" width="24" height="10" rx="3" stroke="currentColor" stroke-width="1.5"/>
-          <rect x="20" y="12" width="40" height="8" rx="2" stroke="currentColor" stroke-width="1.5"/>
-          <path d="M16 20h48a4 4 0 0 1 4 4v88a4 4 0 0 1-4 4H16a4 4 0 0 1-4-4V24a4 4 0 0 1 4-4z" stroke="currentColor" stroke-width="1.5"/>
-          <path d="M28 50c0-6.627 5.373-12 12-12s12 5.373 12 12-5.373 18-12 18-12-11.373-12-18z" stroke="currentColor" stroke-width="1.2" opacity=".4"/>
-          <line x1="40" y1="75" x2="40" y2="95" stroke="currentColor" stroke-width="1.2" opacity=".3"/>
-        </svg>
-      </div>
-      ${p.status ? `<span class="status-badge ${statusClass}">${escapeHtml(localizeStatus(p.status))}</span>` : ''}
-    </div>
-    <div class="card-body">
-      <p class="card-brand">${escapeHtml(p.brand)}</p>
-      <h2 class="card-name">${escapeHtml(p.name)}</h2>
-      ${p.rating ? `<div class="card-rating" aria-label="${L.outOf5Stars(p.rating)}">${renderStars(p.rating)}</div>` : ''}
-      ${notesHtml ? `<div class="card-notes">${notesHtml}</div>` : ''}
-      <div class="card-meta">
-        ${p.concentration ? `<span class="meta-tag">${escapeHtml(p.concentration)}</span>` : ''}
-        ${p.season       ? `<span class="meta-tag">${escapeHtml(localizeSeason(p.season))}</span>` : ''}
-        ${p.volume       ? `<span class="meta-tag">${escapeHtml(p.volume)}</span>` : ''}
-      </div>
-    </div>`;
-
-  card.addEventListener('click',  () => openModal(p));
-  card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') openModal(p); });
-  return card;
-}
-
-function renderStats(perfumes, filtered) {
-  const owned    = perfumes.filter(p => p.status?.toLowerCase() === 'owned').length;
-  const wishlist = perfumes.filter(p => p.status?.toLowerCase() === 'wishlist').length;
-  const total    = perfumes.length;
-
-  const prefix = filtered ? L.statsShowing : L.statsCollection;
-  const parts  = [`<span>${total} ${total === 1 ? L.fragrance : L.fragrances}</span>`];
-  if (!filtered && owned)    parts.push(`<span>${owned} ${L.statsOwned}</span>`);
-  if (!filtered && wishlist) parts.push(`<span>${wishlist} ${L.statsWishlist}</span>`);
-
-  statsEl.innerHTML = `<p class="stats-text">${prefix} · ${parts.join(' · ')}</p>`;
-}
-
-// ── Modal ─────────────────────────────────────────────────
-function openModal(p) {
-  const allNotes = parseNotes(p.notes).map(n => `<span class="note-tag">${n}</span>`).join('');
-  const statusClass = p.status ? `status-${p.status.toLowerCase().replace(/\s+/g, '-')}` : '';
-
-  modalBody.innerHTML = `
-    <div class="modal-image-wrap">
-      ${p.image
-        ? `<img src="${escapeAttr(p.image)}" alt="${escapeAttr(p.name)}" class="modal-image" onerror="this.parentElement.classList.add('img-error');this.remove()">`
-        : ''}
-      <div class="card-image-placeholder modal-placeholder" aria-hidden="true">
-        <svg viewBox="0 0 80 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="28" y="2" width="24" height="10" rx="3" stroke="currentColor" stroke-width="1.5"/>
-          <rect x="20" y="12" width="40" height="8" rx="2" stroke="currentColor" stroke-width="1.5"/>
-          <path d="M16 20h48a4 4 0 0 1 4 4v88a4 4 0 0 1-4 4H16a4 4 0 0 1-4-4V24a4 4 0 0 1 4-4z" stroke="currentColor" stroke-width="1.5"/>
-          <path d="M28 50c0-6.627 5.373-12 12-12s12 5.373 12 12-5.373 18-12 18-12-11.373-12-18z" stroke="currentColor" stroke-width="1.2" opacity=".4"/>
-          <line x1="40" y1="75" x2="40" y2="95" stroke="currentColor" stroke-width="1.2" opacity=".3"/>
-        </svg>
-      </div>
-    </div>
-    <div class="modal-info">
-      <p class="modal-brand">${escapeHtml(p.brand)}</p>
-      <h2 class="modal-name" id="modal-title">${escapeHtml(p.name)}</h2>
-      <div class="modal-badges">
-        ${p.status        ? `<span class="status-badge ${statusClass}">${escapeHtml(localizeStatus(p.status))}</span>` : ''}
-        ${p.concentration ? `<span class="meta-tag">${escapeHtml(p.concentration)}</span>` : ''}
-        ${p.volume        ? `<span class="meta-tag">${escapeHtml(p.volume)}</span>` : ''}
-        ${p.season        ? `<span class="meta-tag">${escapeHtml(localizeSeason(p.season))}</span>` : ''}
-      </div>
-      ${p.rating ? `<div class="modal-rating" aria-label="${L.outOf5(p.rating)}">${renderStars(p.rating)}<span class="rating-num">${p.rating.toFixed(1)}</span></div>` : ''}
-      ${allNotes ? `
-        <div class="modal-section">
-          <p class="modal-label">${L.fragranceNotes}</p>
-          <div class="modal-notes">${allNotes}</div>
-        </div>` : ''}
-      ${p.description ? `
-        <div class="modal-section">
-          <p class="modal-label">${L.myNotes}</p>
-          <p class="modal-description">${escapeHtml(p.description)}</p>
-        </div>` : ''}
-    </div>`;
-
-  overlay.hidden = false;
-  document.body.classList.add('modal-open');
-}
-
-function closeModal() {
-  overlay.hidden = true;
-  document.body.classList.remove('modal-open');
-}
-
-// ── Loading / error states ────────────────────────────────
-function showSkeletons() {
-  grid.innerHTML = Array.from({ length: 8 }, () => `
-    <div class="skeleton-card" aria-hidden="true">
-      <div class="skeleton skeleton-img"></div>
-      <div class="skeleton-body">
-        <div class="skeleton skeleton-line short"></div>
-        <div class="skeleton skeleton-line"></div>
-        <div class="skeleton skeleton-line medium"></div>
-      </div>
-    </div>`).join('');
-}
-
-function showError(err) {
-  grid.innerHTML = `
-    <div class="error-state">
-      <p class="error-title">${L.errorTitle}</p>
-      <p class="error-detail">${escapeHtml(err.message)}</p>
-      <ul class="error-tips">
-        <li>${L.errorTip1}</li>
-        <li>${L.errorTip2}</li>
-        <li>${L.errorTip3}</li>
-      </ul>
-      <button class="btn-reset" onclick="fetchData()">${L.tryAgain}</button>
-    </div>`;
-  console.error('[Pafoom]', err);
-}
-
-function loadMockData() {
-  showSkeletons();
-  // Brief artificial delay so you can see the skeleton loading state
-  setTimeout(() => {
-    state.all      = MOCK_DATA;
-    state.filtered = [...MOCK_DATA];
-    populateBrandFilter();
-    renderGrid(state.all);
-    renderStats(state.all);
-
-    const banner = document.createElement('div');
-    banner.className = 'demo-banner';
-    banner.innerHTML = L.demoBanner;
-    document.querySelector('.main-content').prepend(banner);
-  }, 600);
-}
-
-function showSetupMessage() {
-  grid.innerHTML = `
-    <div class="setup-state">
-      <h2 class="setup-title">Welcome to Pafoom ✦</h2>
-      <p>Open <code>config.js</code> and replace <code>YOUR_GOOGLE_SHEET_ID_HERE</code> with your actual Sheet ID to get started.</p>
-      <ol class="setup-steps">
-        <li>Create a Google Sheet with columns: <em>Name, Brand, Image, Notes, Season, Concentration, Rating, Description, Status, Volume</em></li>
-        <li>Share it → <em>"Anyone with the link — Viewer"</em></li>
-        <li>Copy the Sheet ID from the URL</li>
-        <li>Paste it in <code>config.js</code></li>
-      </ol>
-    </div>`;
-  if (loading) loading.remove();
-}
-
-// ── Helpers ───────────────────────────────────────────────
-function resetFilters() {
-  searchInput.value = '';
-  brandSel.value    = '';
-  seasonSel.value   = '';
-  statusSel.value   = '';
-  applyFilters();
-}
-
-function parseNotes(raw) {
-  if (!raw) return [];
-  return raw.split(/[,、，]/).map(n => n.trim()).filter(Boolean);
-}
-
-function renderStars(rating) {
-  const full  = Math.floor(rating);
-  const half  = rating % 1 >= 0.5 ? 1 : 0;
-  const empty = 5 - full - half;
-  return (
-    '<span class="stars" aria-hidden="true">' +
-    '★'.repeat(full) +
-    (half ? '½' : '') +
-    '☆'.repeat(empty) +
-    '</span>'
-  );
-}
-
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-function escapeAttr(str) {
-  return String(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
+})();

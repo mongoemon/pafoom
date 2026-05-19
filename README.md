@@ -247,7 +247,7 @@ To preview the site with sample data before connecting your sheet, open `config.
 USE_MOCK_DATA: true,
 ```
 
-Switch it back to `false` when your real sheet is ready.
+The 12 built-in sample fragrances live in `mock-data.js`. Switch `USE_MOCK_DATA` back to `false` when your real sheet is ready.
 
 ---
 
@@ -304,6 +304,8 @@ All display settings are in `config.js`:
 | `SHEET_LANGUAGES` | Maps tab names to languages (used when `LANGUAGE` is `'auto'`) |
 | `COLUMN_NAMES` | Rename columns if your headers are spelled differently |
 
+> 💡 **Tip:** You can also configure all settings through the **Settings page** (`settings.html`) — no code editing required. Changes are saved to your browser and apply immediately when you return to the collection.
+
 **Example — if your sheet uses `House` instead of `Brand`:**
 
 ```js
@@ -327,14 +329,38 @@ const COLUMN_NAMES = {
 
 ---
 
+## Sorting
+
+The collection grid supports sorting by rating via a dropdown next to the filters. Choose **High to Low** or **Low to High** to reorder the cards without reloading.
+
+The sort control appears automatically when a real or mock data source is active.
+
+---
+
+## Settings Page
+
+Open the settings page by clicking the gear icon in the header or visiting `settings.html`.
+
+### Connection Test
+
+Enter your Sheet ID and tab name, then click **Test Connection** to verify the sheet is reachable before saving. The test reports the number of rows found or an error message if the connection fails.
+
+All settings — including Sheet ID, tab name, site title, subtitle, language, and column mappings — are saved to your browser's local storage and applied immediately when you return to the collection page.
+
+---
+
 ## File Structure
 
 ```
 Pafoom/
-├── index.html   — page structure
-├── style.css    — dark luxury styling
-├── app.js       — data fetching and UI logic
-├── config.js    — your settings, language map, and mock data
-├── locale.js    — English and Thai UI strings
-└── settings.js  — settings page logic
+├── index.html     — collection page structure
+├── style.css      — dark luxury styling (shared)
+├── settings.html  — settings page
+├── settings.css   — settings page styles
+├── app.js         — data fetching and UI logic
+├── settings.js    — settings page logic
+├── config.js      — your sheet ID, language, and column mapping
+├── locale.js      — English and Thai UI strings
+├── mock-data.js   — 12 sample fragrances for demo mode
+└── utils.js       — shared helpers (sheet URL builder, Drive image converter)
 ```
