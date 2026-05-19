@@ -653,10 +653,6 @@ select {
   animation: fade-in 200ms ease forwards;
 }
 
-.modal {
-  cursor: default;
-}
-
 .modal-overlay[hidden] {
   display: none;
 }
@@ -672,6 +668,7 @@ select {
 }
 
 .modal {
+  cursor: default;
   position: relative;
   background: #141418;
   border: 1px solid rgba(200, 169, 110, 0.2);
@@ -735,7 +732,7 @@ select {
 }
 
 .modal-info {
-  padding: 2rem 1.75rem 2rem;
+  padding: 2rem 1.75rem;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -810,7 +807,7 @@ select {
 /* ── Footer ──────────────────────────────────────────────── */
 .site-footer {
   text-align: center;
-  padding: 1.5rem 1.5rem;
+  padding: 1.5rem;
   font-size: 0.6875rem;
   color: var(--text-muted);
   border-top: 1px solid var(--border);
@@ -1039,7 +1036,7 @@ select {
 }
 
 .detail-body {
-  padding: 1.25rem 1.25rem 1.25rem;
+  padding: 1.25rem;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -1153,7 +1150,7 @@ select {
 }
 
 .hero-body {
-  padding: 2rem 2rem 2rem;
+  padding: 2rem;
   display: flex;
   flex-direction: column;
   justify-content: center;
