@@ -47,7 +47,7 @@ html {
 body {
   background: var(--bg);
   color: var(--text-primary);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: 'Inter', 'Sarabun', system-ui, -apple-system, sans-serif;
   font-size: 0.9375rem;
   line-height: 1.6;
   min-height: 100dvh;
@@ -69,12 +69,32 @@ select { font: inherit; }
   overflow: hidden;
 }
 
-.settings-link {
+.header-actions {
   position: absolute;
   top: 1.25rem;
   right: 1.5rem;
-  width: 36px;
-  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.lang-toggle {
+  height: 30px;
+  padding: 0 0.6rem;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  transition: color var(--transition), border-color var(--transition), background var(--transition);
+}
+.lang-toggle:hover { color: var(--gold); border-color: var(--border-hover); background: var(--gold-dim); }
+
+.settings-link {
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -483,8 +503,11 @@ select { font: inherit; }
   justify-content: center;
   padding: 1.5rem;
   z-index: 100;
+  cursor: pointer;
   animation: fade-in 200ms ease forwards;
 }
+
+.modal { cursor: default; }
 
 .modal-overlay[hidden] { display: none; }
 
@@ -513,25 +536,6 @@ select { font: inherit; }
   from { opacity: 0; transform: translateY(20px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-
-.modal-close {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-  z-index: 10;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.08);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-secondary);
-  transition: background var(--transition), color var(--transition);
-}
-
-.modal-close svg { width: 16px; height: 16px; }
-.modal-close:hover { background: rgba(255,255,255,0.14); color: var(--text-primary); }
 
 .modal-content {
   display: contents;

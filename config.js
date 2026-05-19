@@ -44,6 +44,26 @@ const CONFIG = {
   // Set to true to preview with demo data instead of fetching from Google Sheets.
   // Switch back to false when your real sheet is ready.
   USE_MOCK_DATA: false,
+
+  // UI language: 'auto', 'en', or 'th'.
+  //   'auto' — automatically follows SHEET_LANGUAGES below.
+  //   'en'   — always English regardless of sheet.
+  //   'th'   — always Thai regardless of sheet.
+  // Can also be changed from the Settings page.
+  LANGUAGE: 'auto',
+};
+
+// ── Sheet → Language mapping (used when LANGUAGE is 'auto') ──
+//
+//  Add one entry per sheet tab name. The tab name must match
+//  exactly the tab at the bottom of your Google Sheet (case-sensitive).
+//
+//    'MyTabName': 'en'   ← this tab holds English data → English UI
+//    'MyTabName': 'th'   ← this tab holds Thai data    → Thai UI
+//
+const SHEET_LANGUAGES = {
+  'Sheet1': 'en',   // ← rename or duplicate as needed
+  'Thai':   'th',
 };
 
 // Map CONFIG column names → your actual sheet header text.

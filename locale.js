@@ -1,0 +1,210 @@
+// ============================================================
+//  PAFOOM — Localisation
+//  Add new languages by copying either block and translating.
+// ============================================================
+
+const LOCALES = {
+
+  en: {
+    lang: 'en',
+
+    // Filters
+    searchPlaceholder: 'Search by name, brand, or notes…',
+    allBrands:  'All Brands',
+    allSeasons: 'All Seasons',
+    allStatus:  'All Status',
+
+    // Season option labels (values in sheet stay as English keys)
+    seasonSpring: 'Spring',
+    seasonSummer: 'Summer',
+    seasonFall:   'Fall',
+    seasonWinter: 'Winter',
+    seasonAll:    'All Season',
+
+    // Status labels
+    statusOwned:    'Owned',
+    statusWishlist: 'Wishlist',
+    statusDecant:   'Decant',
+    statusGifted:   'Gifted',
+
+    // Stats bar
+    statsCollection: 'Collection',
+    statsShowing:    'Showing',
+    fragrance:       'fragrance',
+    fragrances:      'fragrances',
+    statsOwned:      'owned',
+    statsWishlist:   'wishlist',
+
+    // Modal labels
+    fragranceNotes: 'Fragrance Notes',
+    myNotes:        'My Notes',
+    outOf5Stars:    r => `${r} out of 5 stars`,
+    outOf5:         r => `${r} out of 5`,
+
+    // States
+    noResults:   'No fragrances found',
+    clearFilters:'Clear filters',
+    tryAgain:    'Try again',
+    errorTitle:  'Could not load collection',
+    errorTip1:   'Check that SHEET_ID in config.js is correct',
+    errorTip2:   'Make sure the sheet is shared as "Anyone with the link — Viewer"',
+    errorTip3:   'Verify the SHEET_NAME matches the tab name exactly',
+    demoBanner:  'Demo mode — add your <code>SHEET_ID</code> in <code>config.js</code> to load your real collection',
+    footer:      'Data synced from Google Sheets',
+
+    // Language toggle label (shown as the OTHER language to switch to)
+    langSwitch: 'ไทย',
+    langAuto:   'Auto (follows sheet tab)',
+
+    // ── Settings page ─────────────────────────────────────
+    settingsTitle:      'Settings',
+    backLabel:          'Collection',
+    sectionConnection:  'Google Sheet Connection',
+    sectionAppearance:  'Appearance',
+    sectionDataSource:  'Data Source',
+    sectionColumns:     'Column Mapping',
+    sectionLanguage:    'Language',
+    fieldSheetId:       'Sheet ID',
+    hintSheetId:        'The unique ID in your Google Sheets URL, between /d/ and /edit. You can also paste the full URL here.',
+    hintSheetIdInline:  'Found in the URL: …/spreadsheets/d/YOUR_ID/edit',
+    fieldTabName:       'Tab name',
+    hintTabName:        'The tab name at the bottom of Google Sheets. Case-sensitive. Default is Sheet1.',
+    hintTabNameInline:  'The tab at the bottom of your Google Sheet. Case-sensitive.',
+    fieldSiteTitle:     'Site title',
+    hintSiteTitle:      'The large heading shown at the top of your collection page and in the browser tab.',
+    fieldSubtitle:      'Subtitle',
+    hintSubtitle:       'The smaller line shown below the title in gold uppercase lettering.',
+    fieldUseMockData:   'Use demo data',
+    hintUseMockData:    'Shows 12 built-in sample fragrances so you can preview the layout without connecting a sheet.',
+    hintUseMockDataSub: 'Preview the site with sample data — no sheet needed',
+    columnMappingHint:  'Only fill in a field if your sheet uses a different header name. Leave blank to use the default shown as placeholder.',
+    showColumnNames:    'Show column names',
+    btnTest:    'Test',
+    btnSave:    'Save changes',
+    btnView:    'View collection',
+    btnReset:   'Reset to defaults',
+    resetConfirm:     'Reset all settings to the defaults in config.js?',
+    savedOk:          'Settings saved ✓',
+    resetOk:          'Reset to defaults',
+    testConnecting:   'Testing connection…',
+    testSuccess:      n => `Connected — ${n} row${n !== 1 ? 's' : ''} found`,
+    testFail:         'Failed — check Sheet ID and make sure the sheet is public',
+    testTimeout:      'Timed out — check your internet connection',
+    testSheetError:   'Sheet returned an error — check sharing settings',
+    testEmpty:        'Enter a Sheet ID first',
+    langEnglish:      'English',
+    langThai:         'ภาษาไทย',
+
+    // Column definitions for the settings column-mapping grid
+    columnDefs: {
+      NAME:          { label: 'Name',          hint: 'Required. The perfume name shown as the card heading.' },
+      BRAND:         { label: 'Brand',          hint: 'Brand or fragrance house. Shown above the name and used in the brand filter.' },
+      IMAGE:         { label: 'Image',          hint: 'Direct image URL. Accepts Google Drive share links, Imgur, or any public image URL.' },
+      NOTES:         { label: 'Notes',          hint: 'Fragrance notes, comma-separated (e.g. Rose, Oud, Sandalwood). Displayed as tags.' },
+      SEASON:        { label: 'Season',         hint: 'Use English values: Spring, Summer, Fall, Winter, or All Season. Powers the season filter.' },
+      CONCENTRATION: { label: 'Concentration',  hint: 'Fragrance type — e.g. EDP, EDT, Parfum, EDC. Shown as a tag on the card.' },
+      RATING:        { label: 'Rating',         hint: 'Your personal score from 1 to 5. Decimals are fine (e.g. 4.5). Displayed as stars.' },
+      DESCRIPTION:   { label: 'Description',    hint: 'Your personal notes or review. Only shown in the detail view, not on the card.' },
+      STATUS:        { label: 'Status',         hint: 'Use English values: Owned, Wishlist, Decant, or Gifted. Shows a colour badge.' },
+      VOLUME:        { label: 'Volume',         hint: 'Bottle size (e.g. 100ml, 50ml). Shown as a tag on the card.' },
+    },
+  },
+
+  // ──────────────────────────────────────────────────────────
+  th: {
+    lang: 'th',
+
+    searchPlaceholder: 'ค้นหาชื่อ แบรนด์ หรือกลิ่น…',
+    allBrands:  'ทุกแบรนด์',
+    allSeasons: 'ทุกฤดูกาล',
+    allStatus:  'ทุกสถานะ',
+
+    seasonSpring: 'ฤดูใบไม้ผลิ',
+    seasonSummer: 'ฤดูร้อน',
+    seasonFall:   'ฤดูใบไม้ร่วง',
+    seasonWinter: 'ฤดูหนาว',
+    seasonAll:    'ทุกฤดูกาล',
+
+    statusOwned:    'มีอยู่',
+    statusWishlist: 'อยากได้',
+    statusDecant:   'แบ่งขาย',
+    statusGifted:   'ของขวัญ',
+
+    statsCollection: 'คอลเลกชัน',
+    statsShowing:    'แสดง',
+    fragrance:       'น้ำหอม',
+    fragrances:      'น้ำหอม',
+    statsOwned:      'มีอยู่',
+    statsWishlist:   'อยากได้',
+
+    fragranceNotes: 'กลิ่นหอม',
+    myNotes:        'บันทึกของฉัน',
+    outOf5Stars:    r => `${r} จาก 5 ดาว`,
+    outOf5:         r => `${r} จาก 5`,
+
+    noResults:   'ไม่พบน้ำหอม',
+    clearFilters:'ล้างตัวกรอง',
+    tryAgain:    'ลองอีกครั้ง',
+    errorTitle:  'ไม่สามารถโหลดคอลเลกชันได้',
+    errorTip1:   'ตรวจสอบว่า SHEET_ID ใน config.js ถูกต้อง',
+    errorTip2:   'ตรวจสอบว่าแชร์ชีตเป็น "ทุกคนที่มีลิงก์ — ผู้ดู"',
+    errorTip3:   'ตรวจสอบว่า SHEET_NAME ตรงกับชื่อแท็บพอดี',
+    demoBanner:  'โหมดสาธิต — เพิ่ม <code>SHEET_ID</code> ใน <code>config.js</code> เพื่อโหลดคอลเลกชันจริง',
+    footer:      'ข้อมูลซิงค์จาก Google Sheets',
+
+    langSwitch: 'EN',
+    langAuto:   'อัตโนมัติ (ตามชีต)',
+
+    settingsTitle:      'การตั้งค่า',
+    backLabel:          'คอลเลกชัน',
+    sectionConnection:  'การเชื่อมต่อ Google Sheet',
+    sectionAppearance:  'การแสดงผล',
+    sectionDataSource:  'แหล่งข้อมูล',
+    sectionColumns:     'การจับคู่คอลัมน์',
+    sectionLanguage:    'ภาษา',
+    fieldSheetId:       'Sheet ID',
+    hintSheetId:        'รหัสเฉพาะของ Google Sheet จาก URL ระหว่าง /d/ และ /edit สามารถวาง URL เต็มได้เลย',
+    hintSheetIdInline:  'อยู่ใน URL: …/spreadsheets/d/YOUR_ID/edit',
+    fieldTabName:       'ชื่อแท็บ',
+    hintTabName:        'ชื่อแท็บที่ด้านล่างของ Google Sheets ตรงตัวอักษร ค่าเริ่มต้นคือ Sheet1',
+    hintTabNameInline:  'แท็บที่ด้านล่างของ Google Sheet ตรงตัวอักษร',
+    fieldSiteTitle:     'ชื่อเว็บไซต์',
+    hintSiteTitle:      'หัวข้อใหญ่ที่แสดงบนหน้าคอลเลกชันและในแท็บเบราว์เซอร์',
+    fieldSubtitle:      'คำบรรยาย',
+    hintSubtitle:       'ข้อความขนาดเล็กใต้ชื่อ แสดงเป็นอักษรทองตัวพิมพ์ใหญ่',
+    fieldUseMockData:   'ใช้ข้อมูลตัวอย่าง',
+    hintUseMockData:    'แสดงน้ำหอมตัวอย่าง 12 รายการ เพื่อดูหน้าตาเว็บก่อนเชื่อมต่อชีต',
+    hintUseMockDataSub: 'ดูตัวอย่างเว็บด้วยข้อมูลสาธิต — ไม่ต้องใช้ชีต',
+    columnMappingHint:  'กรอกเฉพาะคอลัมน์ที่ชีตของคุณใช้ชื่อหัวข้อต่างออกไป ปล่อยว่างไว้เพื่อใช้ชื่อเริ่มต้น',
+    showColumnNames:    'แสดงชื่อคอลัมน์',
+    btnTest:    'ทดสอบ',
+    btnSave:    'บันทึกการเปลี่ยนแปลง',
+    btnView:    'ดูคอลเลกชัน',
+    btnReset:   'คืนค่าเริ่มต้น',
+    resetConfirm:     'คืนค่าการตั้งค่าทั้งหมดเป็นค่าเริ่มต้นใน config.js?',
+    savedOk:          'บันทึกการตั้งค่าแล้ว ✓',
+    resetOk:          'คืนค่าเริ่มต้นแล้ว',
+    testConnecting:   'กำลังทดสอบการเชื่อมต่อ…',
+    testSuccess:      n => `เชื่อมต่อแล้ว — พบ ${n} แถว`,
+    testFail:         'ล้มเหลว — ตรวจสอบ Sheet ID และตรวจสอบว่าชีตเป็นสาธารณะ',
+    testTimeout:      'หมดเวลา — ตรวจสอบการเชื่อมต่ออินเทอร์เน็ต',
+    testSheetError:   'ชีตส่งกลับข้อผิดพลาด — ตรวจสอบการตั้งค่าการแชร์',
+    testEmpty:        'กรุณาใส่ Sheet ID ก่อน',
+    langEnglish:      'English',
+    langThai:         'ภาษาไทย',
+
+    columnDefs: {
+      NAME:          { label: 'ชื่อน้ำหอม (Name)',        hint: 'จำเป็น ชื่อน้ำหอมที่แสดงเป็นหัวข้อบนการ์ด' },
+      BRAND:         { label: 'แบรนด์ (Brand)',            hint: 'แบรนด์หรือบ้านน้ำหอม แสดงเหนือชื่อและใช้ในตัวกรองแบรนด์' },
+      IMAGE:         { label: 'รูปภาพ (Image)',             hint: 'URL รูปภาพ รองรับลิงก์แชร์ Google Drive, Imgur หรือ URL สาธารณะ' },
+      NOTES:         { label: 'กลิ่น (Notes)',              hint: 'กลิ่นหอมคั่นด้วยจุลภาค เช่น Rose, Oud, Sandalwood แสดงเป็นแท็ก' },
+      SEASON:        { label: 'ฤดูกาล (Season)',           hint: 'ใช้ค่าภาษาอังกฤษ: Spring, Summer, Fall, Winter หรือ All Season เสมอ' },
+      CONCENTRATION: { label: 'ความเข้มข้น (Conc.)',       hint: 'ประเภทน้ำหอม เช่น EDP, EDT, Parfum, EDC แสดงเป็นแท็กบนการ์ด' },
+      RATING:        { label: 'คะแนน (Rating)',             hint: 'คะแนนส่วนตัว 1–5 ทศนิยมได้ เช่น 4.5 แสดงเป็นดาว' },
+      DESCRIPTION:   { label: 'บันทึก (Description)',       hint: 'บันทึกส่วนตัวหรือรีวิว แสดงเฉพาะในหน้ารายละเอียด ไม่แสดงบนการ์ด' },
+      STATUS:        { label: 'สถานะ (Status)',             hint: 'ใช้ค่าภาษาอังกฤษ: Owned, Wishlist, Decant หรือ Gifted เสมอ แสดงป้ายสี' },
+      VOLUME:        { label: 'ปริมาณ (Volume)',            hint: 'ขนาดขวด เช่น 100ml, 50ml แสดงเป็นแท็กบนการ์ด' },
+    },
+  },
+
+};

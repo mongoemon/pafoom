@@ -55,6 +55,7 @@ const CONFIG = {
   SHEET_ID: 'YOUR_GOOGLE_SHEET_ID_HERE',  // ← paste your ID here
   SHEET_NAME: 'Sheet1',                   // ← tab name at the bottom of your sheet
   USE_MOCK_DATA: false,                   // ← keep this false for real data
+  LANGUAGE: 'auto',                       // ← 'auto', 'en', or 'th'
   ...
 };
 ```
@@ -250,6 +251,46 @@ Switch it back to `false` when your real sheet is ready.
 
 ---
 
+## Language (Thai / English)
+
+The site supports English and Thai. The UI language is controlled by `LANGUAGE` in `config.js`.
+
+### Option 1 — Auto mode (recommended)
+
+Set `LANGUAGE: 'auto'` and map each sheet tab name to a language using `SHEET_LANGUAGES`:
+
+```js
+const CONFIG = {
+  ...
+  LANGUAGE: 'auto',  // follows SHEET_LANGUAGES below
+};
+
+const SHEET_LANGUAGES = {
+  'Sheet1': 'en',  // this tab holds English data → English UI
+  'Thai':   'th',  // this tab holds Thai data    → Thai UI
+};
+```
+
+When the site loads the `Sheet1` tab it shows English; when it loads the `Thai` tab it shows Thai. Add or rename entries to match your actual tab names (case-sensitive).
+
+### Option 2 — Fixed language
+
+Pin the language regardless of which sheet is active:
+
+```js
+LANGUAGE: 'en',   // always English
+LANGUAGE: 'th',   // always Thai
+```
+
+### Changing language at runtime
+
+- **Header toggle button** — switches between English and Thai instantly (page reloads).
+- **Settings page → Language** — choose Auto, English, or Thai. Saved to the browser.
+
+> **Important for Google Sheets:** The `Season` and `Status` column values in your sheet must always be in English — `Spring`, `Summer`, `Fall`, `Winter`, `All Season`, `Owned`, `Wishlist`, `Decant`, `Gifted`. The Thai UI translates them for display only. All other columns (Name, Brand, Notes, Description, etc.) can contain Thai text freely.
+
+---
+
 ## Customising
 
 All display settings are in `config.js`:
@@ -259,6 +300,8 @@ All display settings are in `config.js`:
 | `SITE_TITLE` | The large heading in the header |
 | `SITE_SUBTITLE` | The smaller line below the title |
 | `SHEET_NAME` | Which tab to read (default: `Sheet1`) |
+| `LANGUAGE` | UI language: `'auto'`, `'en'`, or `'th'` |
+| `SHEET_LANGUAGES` | Maps tab names to languages (used when `LANGUAGE` is `'auto'`) |
 | `COLUMN_NAMES` | Rename columns if your headers are spelled differently |
 
 **Example — if your sheet uses `House` instead of `Brand`:**
@@ -279,7 +322,8 @@ const COLUMN_NAMES = {
 | "Could not load collection" | Check `SHEET_ID` is correct and the sheet is shared publicly |
 | Images not showing | Make sure each image file in Drive is shared publicly (not just the folder) |
 | Wrong data / missing columns | Check `SHEET_NAME` matches your tab name exactly (case-sensitive) |
-| Filters not working | Check Season and Status values match the expected spelling exactly |
+| Filters not working | Check `Season` and `Status` values are in English even when using Thai UI |
+| Language not switching | Check the tab name in `SHEET_LANGUAGES` matches your sheet tab exactly |
 
 ---
 
@@ -290,6 +334,7 @@ Pafoom/
 ├── index.html   — page structure
 ├── style.css    — dark luxury styling
 ├── app.js       — data fetching and UI logic
-└── config.js    — your settings and mock data
+├── config.js    — your settings, language map, and mock data
+├── locale.js    — English and Thai UI strings
+└── settings.js  — settings page logic
 ```
-# pafoom

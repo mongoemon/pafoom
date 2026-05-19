@@ -6,14 +6,23 @@
 ;(function () {
   try {
     const s = JSON.parse(localStorage.getItem('pafoom_config') || '{}');
-    if (s.sheetId)                  CONFIG.SHEET_ID      = s.sheetId;
-    if (s.sheetName)                CONFIG.SHEET_NAME    = s.sheetName;
-    if (s.siteTitle)                CONFIG.SITE_TITLE    = s.siteTitle;
-    if (s.siteSubtitle)             CONFIG.SITE_SUBTITLE = s.siteSubtitle;
+    if (s.sheetId)                   CONFIG.SHEET_ID      = s.sheetId;
+    if (s.sheetName)                 CONFIG.SHEET_NAME    = s.sheetName;
+    if (s.siteTitle)                 CONFIG.SITE_TITLE    = s.siteTitle;
+    if (s.siteSubtitle)              CONFIG.SITE_SUBTITLE = s.siteSubtitle;
     if (s.useMockData !== undefined) CONFIG.USE_MOCK_DATA = s.useMockData;
-    if (s.columns)                  Object.assign(COLUMN_NAMES, s.columns);
+    if (s.columns)                   Object.assign(COLUMN_NAMES, s.columns);
+    if (s.language)                  CONFIG.LANGUAGE      = s.language;
   } catch {}
 })();
+
+// Resolve 'auto': look up current sheet tab in SHEET_LANGUAGES map
+if (CONFIG.LANGUAGE === 'auto') {
+  CONFIG.LANGUAGE =
+    (typeof SHEET_LANGUAGES !== 'undefined' && SHEET_LANGUAGES[CONFIG.SHEET_NAME]) || 'en';
+}
+
+const L = LOCALES[CONFIG.LANGUAGE] || LOCALES.en;
 
 const state = {
   all:      [],
@@ -30,13 +39,23 @@ const seasonSel   = document.getElementById('filter-season');
 const statusSel   = document.getElementById('filter-status');
 const overlay     = document.getElementById('modal-overlay');
 const modalBody   = document.getElementById('modal-content');
-const modalClose  = document.getElementById('modal-close');
 
 // ── Initialise ────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   document.querySelector('.site-title').textContent    = CONFIG.SITE_TITLE;
   document.querySelector('.site-subtitle').textContent = CONFIG.SITE_SUBTITLE;
   document.title = CONFIG.SITE_TITLE;
+  document.documentElement.lang = L.lang;
+
+  searchInput.placeholder = L.searchPlaceholder;
+  searchInput.setAttribute('aria-label', L.searchPlaceholder);
+  brandSel.options[0].textContent = L.allBrands;
+  const footerP = document.querySelector('.site-footer p');
+  if (footerP) footerP.textContent = L.footer;
+  const langBtn = document.getElementById('lang-toggle');
+  if (langBtn) langBtn.textContent = L.langSwitch;
+
+  buildFilterOptions();
 
   if (CONFIG.USE_MOCK_DATA || CONFIG.SHEET_ID === 'YOUR_GOOGLE_SHEET_ID_HERE') {
     loadMockData();
@@ -47,6 +66,17 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchData();
   setupListeners();
 });
+
+// ── Language toggle ────────────────────────────────────────
+function toggleLanguage() {
+  const next = CONFIG.LANGUAGE === 'th' ? 'en' : 'th';
+  try {
+    const s = JSON.parse(localStorage.getItem('pafoom_config') || '{}');
+    s.language = next;
+    localStorage.setItem('pafoom_config', JSON.stringify(s));
+  } catch {}
+  location.reload();
+}
 
 // ── Data fetching (JSONP — works from file:// and hosted) ─
 function fetchData() {
@@ -66,7 +96,7 @@ function fetchData() {
 
   const timer = setTimeout(() => {
     cleanup();
-    showError(new Error('Request timed out — check your internet connection'));
+    showError(new Error(L.testTimeout));
   }, 12000);
 
   window[cbName] = (data) => {
@@ -74,7 +104,7 @@ function fetchData() {
     cleanup();
     try {
       if (data.status === 'error') {
-        throw new Error(data.errors?.[0]?.detailed_message || 'Google Sheets returned an error');
+        throw new Error(data.errors?.[0]?.detailed_message || L.testSheetError);
       }
       state.all      = parseTable(data.table);
       state.filtered = [...state.all];
@@ -89,7 +119,7 @@ function fetchData() {
   script.onerror = () => {
     clearTimeout(timer);
     cleanup();
-    showError(new Error('Failed to fetch — check your Sheet ID and sharing settings'));
+    showError(new Error(L.testFail));
   };
 
   document.head.appendChild(script);
@@ -148,12 +178,28 @@ function parseTable(table) {
 }
 
 // ── Filters & search ─────────────────────────────────────
+function buildFilterOptions() {
+  seasonSel.innerHTML =
+    `<option value="">${L.allSeasons}</option>` +
+    `<option value="Spring">${L.seasonSpring}</option>` +
+    `<option value="Summer">${L.seasonSummer}</option>` +
+    `<option value="Fall">${L.seasonFall}</option>` +
+    `<option value="Winter">${L.seasonWinter}</option>` +
+    `<option value="All Season">${L.seasonAll}</option>`;
+
+  statusSel.innerHTML =
+    `<option value="">${L.allStatus}</option>` +
+    `<option value="Owned">${L.statusOwned}</option>` +
+    `<option value="Wishlist">${L.statusWishlist}</option>` +
+    `<option value="Decant">${L.statusDecant}</option>` +
+    `<option value="Gifted">${L.statusGifted}</option>`;
+}
+
 function setupListeners() {
   searchInput.addEventListener('input',  applyFilters);
   brandSel.addEventListener('change',    applyFilters);
   seasonSel.addEventListener('change',   applyFilters);
   statusSel.addEventListener('change',   applyFilters);
-  modalClose.addEventListener('click',   closeModal);
   overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
   document.addEventListener('keydown',   e => { if (e.key === 'Escape') closeModal(); });
 }
@@ -193,6 +239,28 @@ function populateBrandFilter() {
   });
 }
 
+// ── Locale helpers ────────────────────────────────────────
+function localizeStatus(status) {
+  const map = {
+    owned:    L.statusOwned,
+    wishlist: L.statusWishlist,
+    decant:   L.statusDecant,
+    gifted:   L.statusGifted,
+  };
+  return map[status?.toLowerCase()] || status;
+}
+
+function localizeSeason(season) {
+  const map = {
+    spring:       L.seasonSpring,
+    summer:       L.seasonSummer,
+    fall:         L.seasonFall,
+    winter:       L.seasonWinter,
+    'all season': L.seasonAll,
+  };
+  return map[season?.toLowerCase()] || season;
+}
+
 // ── Rendering ─────────────────────────────────────────────
 function renderGrid(perfumes) {
   grid.innerHTML = '';
@@ -201,8 +269,8 @@ function renderGrid(perfumes) {
     grid.innerHTML = `
       <div class="empty-state">
         <div class="empty-icon">✦</div>
-        <p>No fragrances found</p>
-        <button class="btn-reset" onclick="resetFilters()">Clear filters</button>
+        <p>${L.noResults}</p>
+        <button class="btn-reset" onclick="resetFilters()">${L.clearFilters}</button>
       </div>`;
     return;
   }
@@ -240,16 +308,16 @@ function createCard(p) {
           <line x1="40" y1="75" x2="40" y2="95" stroke="currentColor" stroke-width="1.2" opacity=".3"/>
         </svg>
       </div>
-      ${p.status ? `<span class="status-badge ${statusClass}">${p.status}</span>` : ''}
+      ${p.status ? `<span class="status-badge ${statusClass}">${escapeHtml(localizeStatus(p.status))}</span>` : ''}
     </div>
     <div class="card-body">
       <p class="card-brand">${escapeHtml(p.brand)}</p>
       <h2 class="card-name">${escapeHtml(p.name)}</h2>
-      ${p.rating ? `<div class="card-rating" aria-label="${p.rating} out of 5 stars">${renderStars(p.rating)}</div>` : ''}
+      ${p.rating ? `<div class="card-rating" aria-label="${L.outOf5Stars(p.rating)}">${renderStars(p.rating)}</div>` : ''}
       ${notesHtml ? `<div class="card-notes">${notesHtml}</div>` : ''}
       <div class="card-meta">
         ${p.concentration ? `<span class="meta-tag">${escapeHtml(p.concentration)}</span>` : ''}
-        ${p.season       ? `<span class="meta-tag">${escapeHtml(p.season)}</span>` : ''}
+        ${p.season       ? `<span class="meta-tag">${escapeHtml(localizeSeason(p.season))}</span>` : ''}
         ${p.volume       ? `<span class="meta-tag">${escapeHtml(p.volume)}</span>` : ''}
       </div>
     </div>`;
@@ -264,10 +332,10 @@ function renderStats(perfumes, filtered) {
   const wishlist = perfumes.filter(p => p.status?.toLowerCase() === 'wishlist').length;
   const total    = perfumes.length;
 
-  const prefix = filtered ? 'Showing' : 'Collection';
-  const parts  = [`<span>${total} ${total === 1 ? 'fragrance' : 'fragrances'}</span>`];
-  if (!filtered && owned)    parts.push(`<span>${owned} owned</span>`);
-  if (!filtered && wishlist) parts.push(`<span>${wishlist} wishlist</span>`);
+  const prefix = filtered ? L.statsShowing : L.statsCollection;
+  const parts  = [`<span>${total} ${total === 1 ? L.fragrance : L.fragrances}</span>`];
+  if (!filtered && owned)    parts.push(`<span>${owned} ${L.statsOwned}</span>`);
+  if (!filtered && wishlist) parts.push(`<span>${wishlist} ${L.statsWishlist}</span>`);
 
   statsEl.innerHTML = `<p class="stats-text">${prefix} · ${parts.join(' · ')}</p>`;
 }
@@ -296,27 +364,26 @@ function openModal(p) {
       <p class="modal-brand">${escapeHtml(p.brand)}</p>
       <h2 class="modal-name" id="modal-title">${escapeHtml(p.name)}</h2>
       <div class="modal-badges">
-        ${p.status        ? `<span class="status-badge ${statusClass}">${p.status}</span>` : ''}
+        ${p.status        ? `<span class="status-badge ${statusClass}">${escapeHtml(localizeStatus(p.status))}</span>` : ''}
         ${p.concentration ? `<span class="meta-tag">${escapeHtml(p.concentration)}</span>` : ''}
         ${p.volume        ? `<span class="meta-tag">${escapeHtml(p.volume)}</span>` : ''}
-        ${p.season        ? `<span class="meta-tag">${escapeHtml(p.season)}</span>` : ''}
+        ${p.season        ? `<span class="meta-tag">${escapeHtml(localizeSeason(p.season))}</span>` : ''}
       </div>
-      ${p.rating ? `<div class="modal-rating" aria-label="${p.rating} out of 5">${renderStars(p.rating)}<span class="rating-num">${p.rating.toFixed(1)}</span></div>` : ''}
+      ${p.rating ? `<div class="modal-rating" aria-label="${L.outOf5(p.rating)}">${renderStars(p.rating)}<span class="rating-num">${p.rating.toFixed(1)}</span></div>` : ''}
       ${allNotes ? `
         <div class="modal-section">
-          <p class="modal-label">Fragrance Notes</p>
+          <p class="modal-label">${L.fragranceNotes}</p>
           <div class="modal-notes">${allNotes}</div>
         </div>` : ''}
       ${p.description ? `
         <div class="modal-section">
-          <p class="modal-label">My Notes</p>
+          <p class="modal-label">${L.myNotes}</p>
           <p class="modal-description">${escapeHtml(p.description)}</p>
         </div>` : ''}
     </div>`;
 
   overlay.hidden = false;
   document.body.classList.add('modal-open');
-  modalClose.focus();
 }
 
 function closeModal() {
@@ -340,14 +407,14 @@ function showSkeletons() {
 function showError(err) {
   grid.innerHTML = `
     <div class="error-state">
-      <p class="error-title">Could not load collection</p>
+      <p class="error-title">${L.errorTitle}</p>
       <p class="error-detail">${escapeHtml(err.message)}</p>
       <ul class="error-tips">
-        <li>Check that <code>SHEET_ID</code> in config.js is correct</li>
-        <li>Make sure the sheet is shared as <em>"Anyone with the link — Viewer"</em></li>
-        <li>Verify the <code>SHEET_NAME</code> matches the tab name exactly</li>
+        <li>${L.errorTip1}</li>
+        <li>${L.errorTip2}</li>
+        <li>${L.errorTip3}</li>
       </ul>
-      <button class="btn-reset" onclick="fetchData()">Try again</button>
+      <button class="btn-reset" onclick="fetchData()">${L.tryAgain}</button>
     </div>`;
   console.error('[Pafoom]', err);
 }
@@ -362,11 +429,9 @@ function loadMockData() {
     renderGrid(state.all);
     renderStats(state.all);
 
-    // Subtle banner so it's clear this is demo data
     const banner = document.createElement('div');
     banner.className = 'demo-banner';
-    banner.innerHTML =
-      'Demo mode — add your <code>SHEET_ID</code> in <code>config.js</code> to load your real collection';
+    banner.innerHTML = L.demoBanner;
     document.querySelector('.main-content').prepend(banner);
   }, 600);
 }
