@@ -288,7 +288,6 @@ function createCard(p) {
   card.setAttribute('aria-label', `${p.name} by ${p.brand}`);
 
   const notesHtml = parseNotes(p.notes)
-    .slice(0, 3)
     .map(n => `<span class="note-tag">${n}</span>`)
     .join('');
 

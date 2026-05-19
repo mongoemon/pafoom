@@ -349,6 +349,9 @@ select { font: inherit; }
   flex-wrap: wrap;
   gap: 0.25rem;
   margin-bottom: 0.5rem;
+  /* ~3 rows of tags: tag height ≈ 1.35rem + 0.25rem gap */
+  max-height: calc(3 * 1.35rem + 2 * 0.25rem);
+  overflow: hidden;
 }
 
 .note-tag {
